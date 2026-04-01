@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RFM 세그먼트 이동 매트릭스 — 25-12 → 26-04</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --purple: #5a0ad2;
+    --purple-light: #8081ff;
+    --teal: #1D9E75;
+    --teal-light: #5DCAA5;
+    --amber: #EF9F27;
+    --red: #E24B4A;
+    --blue: #378ADD;
+    --gray: #888780;
+    --gray-light: #B4B2A9;
+    --bg: #f7f6f3;
+    --bg-card: #ffffff;
+    --border: rgba(0,0,0,0.08);
+    --text-primary: #1a1a1a;
+    --text-secondary: #666;
+    --text-tertiary: #999;
+  }
+
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 2rem;
+  }
+
+  header {
+    margin-bottom: 2rem;
+  }
+
+  .header-label {
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.1em;
+    color: var(--purple);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .metrics-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+
+  .metric-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+
+  .metric-label {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-bottom: 4px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .metric-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+  }
+
+  .metric-sub {
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+
+  .metric-sub.good { color: var(--teal); }
+  .metric-sub.warn { color: var(--amber); }
+  .metric-sub.bad  { color: var(--red); }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 1rem;
+  }
+
+  .tab-btn {
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 13px;
+    padding: 6px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .tab-btn.active {
+    background: var(--purple);
+    color: #fff;
+    border-color: var(--purple);
+  }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .card-title {
+    font-size: 12px;
+    font-family: 'DM Mono', monospace;
+    color: var(--text-tertiary);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+
+  /* 히트맵 */
+  .heatmap-wrap { overflow-x: auto; }
+
+  table.heatmap {
+    border-collapse: collapse;
+    font-size: 11.5px;
+    width: 100%;
+  }
+
+  table.heatmap th {
+    font-weight: 400;
+    color: var(--text-secondary);
+    padding: 4px 6px;
+    text-align: center;
+    font-size: 10.5px;
+  }
+
+  table.heatmap th.row-header {
+    text-align: right;
+    padding-right: 10px;
+    min-width: 110px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  table.heatmap th.col-header {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    height: 90px;
+    vertical-align: bottom;
+    white-space: nowrap;
+  }
+
+  table.heatmap td {
+    padding: 5px 3px;
+    text-align: center;
+    border: 1px solid rgba(0,0,0,0.04);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    min-width: 46px;
+    transition: opacity 0.1s;
+  }
+
+  table.heatmap td:hover { outline: 2px solid var(--purple); outline-offset: -2px; }
+
+  /* Sankey */
+  #sankeyCanvas { display: block; }
+
+  /* 인사이트 */
+  .insight-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 1rem;
+  }
+
+  .insight-chip {
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .insight-chip.good { background: #e8f7f1; color: #0d6b4a; }
+  .insight-chip.warn { background: #fef3e2; color: #8a5900; }
+  .insight-chip.bad  { background: #fdf0f0; color: #9b2020; }
+
+  .insight-chip b { font-weight: 700; display: block; margin-bottom: 2px; }
+
+  /* 범례 */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 12px;
+    font-size: 11.5px;
+    color: var(--text-secondary);
+  }
+
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 2px;
+    display: inline-block;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+
+  @media (max-width: 700px) {
+    .metrics-row { grid-template-columns: repeat(2, 1fr); }
+    .insight-row { grid-template-columns: 1fr; }
+    body { padding: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-label">8percent · RFM Analysis</div>
+  <h1>세그먼트 이동 매트릭스</h1>
+  <p class="subtitle">2025-12-01 → 2026-04-01 기준 · 동일 투자자 추적 · 총 3,760명</p>
+</header>
+
+<div class="metrics-row">
+  <div class="metric-card">
+    <div class="metric-label">최고 유지율</div>
+    <div class="metric-value">84.8%</div>
+    <div class="metric-sub good">놓치면 안되는 고객</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">VIP 유지율</div>
+    <div class="metric-value">78.7%</div>
+    <div class="metric-sub good">133명 → 133명 유지</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">신규→잠드려는 전환</div>
+    <div class="metric-value">60.7%</div>
+    <div class="metric-sub bad">온보딩 이탈 위험</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">잠드려는→이탈 전환</div>
+    <div class="metric-value">13.8%</div>
+    <div class="metric-sub warn">55명 CRM 필요</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="showTab('heatmap',this)">히트맵</button>
+  <button class="tab-btn" onclick="showTab('sankey',this)">Sankey</button>
+</div>
+
+<div class="card" id="tab-heatmap">
+  <div class="card-title">from (행) → to (열) · 셀 값 = from 세그먼트 내 비율(%)</div>
+  <div class="heatmap-wrap">
+    <table class="heatmap" id="heatmap-table"></table>
+  </div>
+  <div style="margin-top:10px; font-size:11px; color:var(--text-tertiary);">
+    <span style="display:inline-block;width:12px;height:12px;background:rgba(90,10,210,0.7);border-radius:2px;vertical-align:middle;margin-right:4px;"></span>대각선(현상유지) — 진할수록 고착
+    <span style="display:inline-block;width:12px;height:12px;background:rgba(29,158,117,0.7);border-radius:2px;vertical-align:middle;margin:0 4px 0 12px;"></span>비대각(세그먼트 이동) — 진할수록 이동 집중
+  </div>
+</div>
+
+<div class="card" id="tab-sankey" style="display:none;">
+  <div class="card-title">흐름 두께 = 투자자 수 · user_count ≥ 5 경로만 표시</div>
+  <div class="legend" id="sankey-legend"></div>
+  <canvas id="sankeyCanvas"></canvas>
+</div>
+
+<div class="insight-row">
+  <div class="insight-chip good">
+    <b>핵심 고객 안정적</b>
+    VIP(78.7%) · 놓치면 안되는(84.8%) 유지율 높음. 최상위 세그먼트 이탈 걱정은 낮음.
+  </div>
+  <div class="insight-chip warn">
+    <b>잠드려는 → 이탈 55명</b>
+    잠드려는 고객의 13.8%가 이탈 전환. Recency 악화 전 CRM 개입 필요.
+  </div>
+  <div class="insight-chip bad">
+    <b>신규 온보딩 구멍</b>
+    신규 고객 60.7%가 잠드려는으로 하락. 첫 투자 후 리텐션 시나리오 없음.
+  </div>
+</div>
+
+<script>
+const raw = [
+  ['신규 고객','잠드려는 고객',34,60.7],['신규 고객','겨울잠 고객',8,14.3],['신규 고객','일반 고객',8,14.3],['신규 고객','신규 고객',4,7.1],['신규 고객','잠재 충성 고객',2,3.6],
+  ['이탈 고객','이탈 고객',65,43.9],['이탈 고객','일반 고객',54,36.5],['이탈 고객','잠드려는 고객',14,9.5],['이탈 고객','겨울잠 고객',10,6.8],['이탈 고객','잠재 충성 고객',2,1.4],['이탈 고객','신규 고객',2,1.4],['이탈 고객','이탈 우려 고객',1,0.7],
+  ['일반 고객','일반 고객',987,68.9],['일반 고객','겨울잠 고객',204,14.2],['일반 고객','충성 고객',93,6.5],['일반 고객','놓치면 안되는 고객',38,2.7],['일반 고객','잠재 충성 고객',34,2.4],['일반 고객','VIP 고객',30,2.1],['일반 고객','이탈 우려 고객',30,2.1],['일반 고객','잠드려는 고객',16,1.1],
+  ['충성 고객','충성 고객',47,45.2],['충성 고객','VIP 고객',24,23.1],['충성 고객','일반 고객',23,22.1],['충성 고객','놓치면 안되는 고객',5,4.8],['충성 고객','이탈 우려 고객',5,4.8],
+  ['이탈 우려 고객','일반 고객',96,53.6],['이탈 우려 고객','놓치면 안되는 고객',35,19.6],['이탈 우려 고객','VIP 고객',26,14.5],['이탈 우려 고객','이탈 우려 고객',22,12.3],
+  ['잠재 충성 고객','일반 고객',90,33.0],['잠재 충성 고객','겨울잠 고객',87,31.9],['잠재 충성 고객','잠드려는 고객',56,20.5],['잠재 충성 고객','잠재 충성 고객',25,9.2],['잠재 충성 고객','충성 고객',11,4.0],['잠재 충성 고객','VIP 고객',2,0.7],['잠재 충성 고객','이탈 우려 고객',1,0.4],['잠재 충성 고객','신규 고객',1,0.4],
+  ['겨울잠 고객','일반 고객',218,47.9],['겨울잠 고객','겨울잠 고객',187,41.1],['겨울잠 고객','잠재 충성 고객',20,4.4],['겨울잠 고객','이탈 우려 고객',18,4.0],['겨울잠 고객','충성 고객',9,2.0],['겨울잠 고객','놓치면 안되는 고객',2,0.4],['겨울잠 고객','VIP 고객',1,0.2],
+  ['놓치면 안되는 고객','놓치면 안되는 고객',106,84.8],['놓치면 안되는 고객','VIP 고객',11,8.8],['놓치면 안되는 고객','이탈 우려 고객',8,6.4],
+  ['잠드려는 고객','일반 고객',152,38.1],['잠드려는 고객','겨울잠 고객',123,30.8],['잠드려는 고객','잠드려는 고객',64,16.0],['잠드려는 고객','이탈 고객',55,13.8],['잠드려는 고객','잠재 충성 고객',5,1.3],
+  ['VIP 고객','VIP 고객',133,78.7],['VIP 고객','이탈 우려 고객',22,13.0],['VIP 고객','놓치면 안되는 고객',14,8.3]
+];
+
+const segOrder = ['VIP 고객','놓치면 안되는 고객','충성 고객','이탈 우려 고객','일반 고객','잠재 충성 고객','겨울잠 고객','잠드려는 고객','이탈 고객','신규 고객'];
+
+const segColors = {
+  'VIP 고객':'#5a0ad2','놓치면 안되는 고객':'#8081ff','충성 고객':'#1D9E75',
+  '이탈 우려 고객':'#EF9F27','일반 고객':'#378ADD','잠재 충성 고객':'#8CC0FF',
+  '겨울잠 고객':'#888780','잠드려는 고객':'#B4B2A9','이탈 고객':'#E24B4A','신규 고객':'#5DCAA5'
+};
+
+// ── 히트맵 ──────────────────────────────────────────────────
+function buildHeatmap() {
+  const matrix = {};
+  segOrder.forEach(r => { matrix[r] = {}; segOrder.forEach(c => matrix[r][c] = 0); });
+  raw.forEach(([f,t,n,p]) => { if(matrix[f]) matrix[f][t] = p; });
+
+  const table = document.getElementById('heatmap-table');
+  let html = '<thead><tr><th class="row-header"></th>';
+  segOrder.forEach(s => {
+    html += `<th class="col-header">${s}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  segOrder.forEach(from => {
+    html += `<tr><th class="row-header">${from}</th>`;
+    segOrder.forEach(to => {
+      const v = matrix[from][to];
+      const isDiag = from === to;
+      let bg = 'transparent', tc = '#ccc';
+      if (v > 0) {
+        if (isDiag) {
+          const a = Math.min(0.9, 0.15 + v / 100 * 1.2);
+          bg = `rgba(90,10,210,${a.toFixed(2)})`;
+          tc = a > 0.45 ? '#fff' : '#3a0a8a';
+        } else {
+          const a = Math.min(0.85, 0.1 + v / 100 * 1.1);
+          bg = `rgba(29,158,117,${a.toFixed(2)})`;
+          tc = a > 0.4 ? '#fff' : '#0a5a3a';
+        }
+      }
+      const label = v > 0 ? v.toFixed(0) + '%' : '';
+      html += `<td style="background:${bg};color:${tc};" title="${from} → ${to}: ${v}%">${label}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+}
+
+// ── Sankey ──────────────────────────────────────────────────
+function buildSankey() {
+  const canvas = document.getElementById('sankeyCanvas');
+  const W = canvas.parentElement.offsetWidth - 2;
+  const H = 580;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  const filtered = raw.filter(d => d[2] >= 5);
+
+  const fromTotals = {}, toTotals = {};
+  segOrder.forEach(s => { fromTotals[s] = 0; toTotals[s] = 0; });
+  filtered.forEach(([f,t,n]) => { fromTotals[f] += n; toTotals[t] += n; });
+
+  const fromSegs = segOrder.filter(s => fromTotals[s] > 0);
+  const toSegs   = segOrder.filter(s => toTotals[s] > 0);
+
+  const totalFlow = filtered.reduce((a,d) => a + d[2], 0);
+  const padX = 148, padY = 30, nodeW = 12, gap = 7;
+  const usableH = H - padY * 2;
+  const scale = (usableH - gap * (fromSegs.length - 1)) / totalFlow * 0.75;
+
+  function layoutNodes(segs, totals, x) {
+    const nodes = {};
+    let y = padY;
+    segs.forEach(s => {
+      const h = Math.max(8, totals[s] * scale);
+      nodes[s] = { x, y, h };
+      y += h + gap;
+    });
+    return nodes;
+  }
+
+  const fromNodes = layoutNodes(fromSegs, fromTotals, padX);
+  const toNodes   = layoutNodes(toSegs,   toTotals,   W - padX - nodeW);
+
+  const fromOffsets = {}, toOffsets = {};
+  fromSegs.forEach(s => fromOffsets[s] = 0);
+  toSegs.forEach(s => toOffsets[s] = 0);
+
+  // 링크
+  filtered.forEach(([f,t,n]) => {
+    if (!fromNodes[f] || !toNodes[t]) return;
+    const h = Math.max(2, n * scale);
+    const fn = fromNodes[f], tn = toNodes[t];
+    const x0 = fn.x + nodeW, y0 = fn.y + fromOffsets[f];
+    const x1 = tn.x,         y1 = tn.y + toOffsets[t];
+    const cx = (x0 + x1) / 2;
+
+    const grad = ctx.createLinearGradient(x0, 0, x1, 0);
+    const c = segColors[f] || '#888';
+    grad.addColorStop(0, c + 'bb');
+    grad.addColorStop(1, c + '33');
+
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.bezierCurveTo(cx, y0, cx, y1, x1, y1);
+    ctx.lineTo(x1, y1 + h);
+    ctx.bezierCurveTo(cx, y1 + h, cx, y0 + h, x0, y0 + h);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    fromOffsets[f] += h;
+    toOffsets[t]   += h;
+  });
+
+  // 노드 + 라벨
+  ctx.font = '500 11.5px "Noto Sans KR", sans-serif';
+  fromSegs.forEach(s => {
+    const n = fromNodes[s];
+    ctx.fillStyle = segColors[s] || '#888';
+    ctx.fillRect(n.x, n.y, nodeW, n.h);
+    ctx.fillStyle = '#444';
+    ctx.textAlign = 'right';
+    ctx.fillText(s, n.x - 6, n.y + n.h / 2 + 4);
+  });
+  toSegs.forEach(s => {
+    const n = toNodes[s];
+    ctx.fillStyle = segColors[s] || '#888';
+    ctx.fillRect(n.x, n.y, nodeW, n.h);
+    ctx.fillStyle = '#444';
+    ctx.textAlign = 'left';
+    ctx.fillText(s, n.x + nodeW + 6, n.y + n.h / 2 + 4);
+  });
+
+  ctx.fillStyle = '#999';
+  ctx.font = '11px "DM Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('2025-12', padX + nodeW / 2, 16);
+  ctx.fillText('2026-04', W - padX - nodeW / 2, 16);
+
+  // 범례
+  const legend = document.getElementById('sankey-legend');
+  legend.innerHTML = segOrder.map(s =>
+    `<span><span class="legend-dot" style="background:${segColors[s]}"></span>${s}</span>`
+  ).join('');
+}
+
+// ── 탭 전환 ─────────────────────────────────────────────────
+function showTab(tab, btn) {
+  document.getElementById('tab-heatmap').style.display = tab === 'heatmap' ? '' : 'none';
+  document.getElementById('tab-sankey').style.display  = tab === 'sankey'  ? '' : 'none';
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (tab === 'sankey') setTimeout(buildSankey, 30);
+}
+
+buildHeatmap();
+</script>
+</body>
+</html>
