@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RFM 대시보드 — 8percent</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+
+:root {
+  --purple:#5a0ad2; --purple-l:#8081ff;
+  --teal:#1D9E75;   --teal-l:#5DCAA5;
+  --blue:#378ADD;   --blue-l:#8CC0FF;
+  --amber:#EF9F27;  --red:#E24B4A;
+  --gray:#888780;   --gray-l:#B4B2A9;
+  --bg:#f5f4f1; --card:#ffffff;
+  --border:rgba(0,0,0,0.07);
+  --text:#1a1a1a; --text2:#666; --text3:#999;
+}
+
+body { font-family:'Noto Sans KR',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+
+/* ── 사이드바 레이아웃 ── */
+.layout { display:flex; min-height:100vh; }
+
+nav {
+  width:200px; min-height:100vh;
+  background:#fff; border-right:1px solid var(--border);
+  padding:1.5rem 0; flex-shrink:0;
+  position:sticky; top:0; height:100vh; overflow-y:auto;
+}
+
+.nav-logo { padding:0 1.25rem 1.25rem; border-bottom:1px solid var(--border); margin-bottom:1rem; }
+.nav-logo .brand { font-size:11px; font-family:'DM Mono',monospace; color:var(--purple); letter-spacing:.08em; }
+.nav-logo h2 { font-size:13px; font-weight:700; margin-top:2px; }
+
+.nav-item {
+  display:block; padding:9px 1.25rem;
+  font-size:13px; color:var(--text2);
+  cursor:pointer; border:none; background:none;
+  width:100%; text-align:left;
+  border-left:2px solid transparent;
+  transition:all .15s;
+}
+.nav-item:hover { color:var(--text); background:var(--bg); }
+.nav-item.active { color:var(--purple); border-left-color:var(--purple); background:#f0ecfd; font-weight:500; }
+.nav-section { font-size:10px; font-family:'DM Mono',monospace; color:var(--text3); letter-spacing:.1em; padding:12px 1.25rem 4px; text-transform:uppercase; }
+
+main { flex:1; padding:2rem; overflow:hidden; }
+
+/* ── 페이지 공통 ── */
+.page { display:none; }
+.page.active { display:block; }
+
+.page-header { margin-bottom:1.5rem; }
+.page-label { font-size:11px; font-family:'DM Mono',monospace; color:var(--purple); letter-spacing:.08em; margin-bottom:4px; }
+.page-title { font-size:20px; font-weight:700; }
+.page-sub { font-size:12.5px; color:var(--text2); margin-top:3px; }
+
+/* ── 카드 ── */
+.card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:1.25rem; margin-bottom:1rem; }
+.card-title { font-size:11px; font-family:'DM Mono',monospace; color:var(--text3); letter-spacing:.06em; text-transform:uppercase; margin-bottom:1rem; }
+
+/* ── 메트릭 ── */
+.metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:1rem; }
+.metric { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+.mlabel { font-size:10.5px; color:var(--text3); font-family:'DM Mono',monospace; margin-bottom:3px; }
+.mval { font-size:19px; font-weight:700; }
+.msub { font-size:11px; color:var(--text3); margin-top:1px; }
+.msub.g{color:var(--teal);} .msub.w{color:var(--amber);} .msub.b{color:var(--red);}
+
+/* ── 차트 ── */
+.chart-wrap { position:relative; width:100%; }
+
+/* ── 히트맵 ── */
+.heatmap-wrap { overflow-x:auto; }
+table.hm { border-collapse:collapse; font-size:11px; width:100%; }
+table.hm th { font-weight:400; color:var(--text2); padding:3px 5px; font-size:10.5px; }
+table.hm th.rh { text-align:right; padding-right:8px; min-width:108px; white-space:nowrap; font-size:11px; }
+table.hm th.ch { writing-mode:vertical-rl; transform:rotate(180deg); height:84px; vertical-align:bottom; white-space:nowrap; }
+table.hm td { padding:5px 2px; text-align:center; border:1px solid rgba(0,0,0,0.04); font-family:'DM Mono',monospace; font-size:10.5px; min-width:44px; }
+table.hm td:hover { outline:2px solid var(--purple); outline-offset:-2px; cursor:default; }
+
+/* ── 인사이트 칩 ── */
+.chips { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:.75rem; }
+.chip { border-radius:8px; padding:10px 12px; font-size:11.5px; line-height:1.6; }
+.chip.g{background:#e6f7f0;color:#0c5c3e;} .chip.w{background:#fef3e2;color:#7a4f00;} .chip.b{background:#fdf0f0;color:#8b1c1c;}
+.chip b{font-weight:700;display:block;margin-bottom:1px;}
+
+/* ── 범례 ── */
+.legend { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; font-size:11.5px; color:var(--text2); }
+.ld { width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:3px;vertical-align:middle; }
+
+@media(max-width:700px){
+  nav{display:none;}
+  .metrics{grid-template-columns:repeat(2,1fr);}
+  .chips{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- 사이드바 -->
+<nav>
+  <div class="nav-logo">
+    <div class="brand">8PERCENT</div>
+    <h2>RFM 대시보드</h2>
+  </div>
+  <div class="nav-section">스냅샷</div>
+  <button class="nav-item active" onclick="goPage('p-count',this)">투자자 수 추이</button>
+  <button class="nav-item" onclick="goPage('p-monetary',this)">Monetary 추이</button>
+  <button class="nav-item" onclick="goPage('p-recency',this)">Recency 추이</button>
+  <div class="nav-section">이동 분석</div>
+  <button class="nav-item" onclick="goPage('p-heatmap',this)">세그먼트 이동 히트맵</button>
+  <button class="nav-item" onclick="goPage('p-sankey',this)">세그먼트 이동 Sankey</button>
+</nav>
+
+<main>
+
+<!-- ① 투자자 수 추이 -->
+<div class="page active" id="p-count">
+  <div class="page-header">
+    <div class="page-label">Snapshot · 투자자 수</div>
+    <div class="page-title">세그먼트별 투자자 수 월별 추이</div>
+    <div class="page-sub">2025-12 / 2026-01 / 2026-03 / 2026-04 기준</div>
+  </div>
+  <div class="metrics">
+    <div class="metric"><div class="mlabel">총 투자자 (25-12)</div><div class="mval">3,917</div><div class="msub g">→ 26-04: 4,187 (+6.9%)</div></div>
+    <div class="metric"><div class="mlabel">겨울잠 고객</div><div class="mval">582→673</div><div class="msub w">4개월간 +15.6%</div></div>
+    <div class="metric"><div class="mlabel">이탈+이탈우려</div><div class="mval">299→230</div><div class="msub g">-23% 감소</div></div>
+    <div class="metric"><div class="mlabel">VIP+충성 합산</div><div class="mval">322→391</div><div class="msub g">+21.4% 성장</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">세그먼트별 투자자 수 (묶음 막대)</div>
+    <div class="legend" id="count-legend"></div>
+    <div class="chart-wrap" style="height:360px;"><canvas id="c-count"></canvas></div>
+  </div>
+</div>
+
+<!-- ② Monetary 추이 -->
+<div class="page" id="p-monetary">
+  <div class="page-header">
+    <div class="page-label">Snapshot · Monetary</div>
+    <div class="page-title">세그먼트별 평균 투자금액 추이</div>
+    <div class="page-sub">Monetary(Avg) 기준 · 단위: 만원</div>
+  </div>
+  <div class="metrics">
+    <div class="metric"><div class="mlabel">충성 고객 평균</div><div class="mval">8,593만</div><div class="msub g">25-12 대비 +28%</div></div>
+    <div class="metric"><div class="mlabel">VIP 고객 평균</div><div class="mval">7,382만</div><div class="msub g">꾸준히 우상향</div></div>
+    <div class="metric"><div class="mlabel">겨울잠 고객 평균</div><div class="mval">490만</div><div class="msub w">인원↑ 단가↓</div></div>
+    <div class="metric"><div class="mlabel">신규 고객 평균</div><div class="mval">0.5만</div><div class="msub b">4개월간 감소</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">핵심 세그먼트 Monetary 평균 추이 (꺾은선)</div>
+    <div class="legend" id="monetary-legend"></div>
+    <div class="chart-wrap" style="height:340px;"><canvas id="c-monetary"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">전체 세그먼트 매출 기여도 — 26-04 기준 (%)</div>
+    <div class="chart-wrap" style="height:280px;"><canvas id="c-revenue"></canvas></div>
+  </div>
+</div>
+
+<!-- ③ Recency 추이 -->
+<div class="page" id="p-recency">
+  <div class="page-header">
+    <div class="page-label">Snapshot · Recency</div>
+    <div class="page-title">세그먼트별 평균 Recency 추이</div>
+    <div class="page-sub">단위: 일 · 값이 낮을수록 최근 투자</div>
+  </div>
+  <div class="metrics">
+    <div class="metric"><div class="mlabel">VIP Recency</div><div class="mval">2.5일</div><div class="msub g">거의 매달 투자</div></div>
+    <div class="metric"><div class="mlabel">이탈 고객 Recency</div><div class="mval">367일</div><div class="msub b">1년 이상 미투자</div></div>
+    <div class="metric"><div class="mlabel">잠드려는 고객</div><div class="mval">95일</div><div class="msub w">3개월 이상 공백</div></div>
+    <div class="metric"><div class="mlabel">겨울잠 고객</div><div class="mval">77일</div><div class="msub w">2.5개월 공백</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">위험 세그먼트 Recency 추이</div>
+    <div class="legend" id="recency-legend"></div>
+    <div class="chart-wrap" style="height:260px;"><canvas id="c-recency"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">핵심 세그먼트 Recency 추이</div>
+    <div class="legend" id="recency2-legend"></div>
+    <div class="chart-wrap" style="height:240px;"><canvas id="c-recency2"></canvas></div>
+  </div>
+</div>
+
+<!-- ④ 히트맵 -->
+<div class="page" id="p-heatmap">
+  <div class="page-header">
+    <div class="page-label">이동 분석 · 히트맵</div>
+    <div class="page-title">세그먼트 이동 매트릭스</div>
+    <div class="page-sub">2025-12-01 → 2026-04-01 · 행=출발 · 열=도착 · 셀=from 내 비율(%)</div>
+  </div>
+  <div class="metrics">
+    <div class="metric"><div class="mlabel">최고 유지율</div><div class="mval">84.8%</div><div class="msub g">놓치면 안되는</div></div>
+    <div class="metric"><div class="mlabel">VIP 유지율</div><div class="mval">78.7%</div><div class="msub g">133명 유지</div></div>
+    <div class="metric"><div class="mlabel">신규→잠드려는</div><div class="mval">60.7%</div><div class="msub b">온보딩 이탈</div></div>
+    <div class="metric"><div class="mlabel">잠드려는→이탈</div><div class="mval">13.8%</div><div class="msub w">55명 CRM 필요</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">이동 매트릭스 히트맵</div>
+    <div class="heatmap-wrap"><table class="hm" id="heatmap-table"></table></div>
+    <div style="margin-top:8px;font-size:11px;color:var(--text3);">
+      <span style="display:inline-block;width:12px;height:12px;background:rgba(90,10,210,0.7);border-radius:2px;vertical-align:middle;margin-right:4px;"></span>대각선(현상유지)
+      <span style="display:inline-block;width:12px;height:12px;background:rgba(29,158,117,0.7);border-radius:2px;vertical-align:middle;margin:0 4px 0 12px;"></span>세그먼트 이동
+    </div>
+  </div>
+  <div class="chips">
+    <div class="chip g"><b>핵심 고객 안정적</b>VIP(78.7%) · 놓치면 안되는(84.8%) 유지. 최상위 이탈 우려 낮음.</div>
+    <div class="chip w"><b>잠드려는→이탈 55명</b>13.8% 이탈 전환. Recency 악화 전 CRM 개입 필요.</div>
+    <div class="chip b"><b>신규 온보딩 구멍</b>60.7%가 잠드려는으로 하락. 첫 투자 후 리텐션 시나리오 필요.</div>
+  </div>
+</div>
+
+<!-- ⑤ Sankey -->
+<div class="page" id="p-sankey">
+  <div class="page-header">
+    <div class="page-label">이동 분석 · Sankey</div>
+    <div class="page-title">세그먼트 이동 흐름</div>
+    <div class="page-sub">2025-12-01 → 2026-04-01 · 흐름 두께 = 투자자 수 · user_count ≥ 5만 표시</div>
+  </div>
+  <div class="card">
+    <div class="card-title">이동 흐름도</div>
+    <div class="legend" id="sankey-legend"></div>
+    <canvas id="sankeyCanvas" style="display:block;width:100%;"></canvas>
+  </div>
+</div>
+
+</main>
+</div>
+
+<script>
+// ── 공통 데이터 ────────────────────────────────────────────
+const months = ['25-12','26-01','26-03','26-04'];
+const segOrder = ['VIP 고객','놓치면 안되는 고객','충성 고객','이탈 우려 고객','일반 고객','잠재 충성 고객','겨울잠 고객','잠드려는 고객','이탈 고객','신규 고객'];
+const segColors = {
+  'VIP 고객':'#5a0ad2','놓치면 안되는 고객':'#8081ff','충성 고객':'#1D9E75',
+  '이탈 우려 고객':'#EF9F27','일반 고객':'#378ADD','잠재 충성 고객':'#8CC0FF',
+  '겨울잠 고객':'#888780','잠드려는 고객':'#B4B2A9','이탈 고객':'#E24B4A','신규 고객':'#5DCAA5'
+};
+
+const snapshot = {
+  '일반 고객':         { count:[1677,1651,1673,1727], monetary:[10640000,11045000,10000000,10000000], recency:[292.2,253.2,263.3,264.4] },
+  '놓치면 안되는 고객': { count:[164,168,198,199],    monetary:[48432500,52445000,52455000,51840000], recency:[482.4,435.7,436.3,458.0] },
+  'VIP 고객':          { count:[205,205,223,226],    monetary:[66645000,67335000,73430000,73822500], recency:[4.0,2.7,3.8,2.5] },
+  '충성 고객':          { count:[117,127,166,165],    monetary:[66970000,74735000,82770000,85925000], recency:[37.6,31.4,31.1,33.5] },
+  '이탈 우려 고객':     { count:[147,130,108,111],    monetary:[41700000,50752500,45285000,46530000], recency:[41.7,44.9,45.4,52.3] },
+  '겨울잠 고객':        { count:[582,617,650,673],    monetary:[5442500,5060000,5110000,4900000],   recency:[71.4,75.1,76.7,77.3] },
+  '잠재 충성 고객':     { count:[357,378,408,384],    monetary:[110000,20000,15000,15000],          recency:[20.7,28.5,26.6,28.2] },
+  '잠드려는 고객':      { count:[399,358,465,471],    monetary:[590000,237500,40000,25000],         recency:[90.9,95.8,92.7,95.4] },
+  '이탈 고객':          { count:[152,157,126,119],    monetary:[20000,20000,10000,10000],           recency:[353.9,351.6,375.4,366.7] },
+  '신규 고객':          { count:[117,120,108,112],    monetary:[5000,10000,5000,5000],              recency:[5.5,8.3,6.4,5.4] }
+};
+
+const migration = [
+  ['신규 고객','잠드려는 고객',34,60.7],['신규 고객','겨울잠 고객',8,14.3],['신규 고객','일반 고객',8,14.3],['신규 고객','신규 고객',4,7.1],['신규 고객','잠재 충성 고객',2,3.6],
+  ['이탈 고객','이탈 고객',65,43.9],['이탈 고객','일반 고객',54,36.5],['이탈 고객','잠드려는 고객',14,9.5],['이탈 고객','겨울잠 고객',10,6.8],['이탈 고객','잠재 충성 고객',2,1.4],['이탈 고객','신규 고객',2,1.4],['이탈 고객','이탈 우려 고객',1,0.7],
+  ['일반 고객','일반 고객',987,68.9],['일반 고객','겨울잠 고객',204,14.2],['일반 고객','충성 고객',93,6.5],['일반 고객','놓치면 안되는 고객',38,2.7],['일반 고객','잠재 충성 고객',34,2.4],['일반 고객','VIP 고객',30,2.1],['일반 고객','이탈 우려 고객',30,2.1],['일반 고객','잠드려는 고객',16,1.1],
+  ['충성 고객','충성 고객',47,45.2],['충성 고객','VIP 고객',24,23.1],['충성 고객','일반 고객',23,22.1],['충성 고객','놓치면 안되는 고객',5,4.8],['충성 고객','이탈 우려 고객',5,4.8],
+  ['이탈 우려 고객','일반 고객',96,53.6],['이탈 우려 고객','놓치면 안되는 고객',35,19.6],['이탈 우려 고객','VIP 고객',26,14.5],['이탈 우려 고객','이탈 우려 고객',22,12.3],
+  ['잠재 충성 고객','일반 고객',90,33.0],['잠재 충성 고객','겨울잠 고객',87,31.9],['잠재 충성 고객','잠드려는 고객',56,20.5],['잠재 충성 고객','잠재 충성 고객',25,9.2],['잠재 충성 고객','충성 고객',11,4.0],['잠재 충성 고객','VIP 고객',2,0.7],['잠재 충성 고객','이탈 우려 고객',1,0.4],['잠재 충성 고객','신규 고객',1,0.4],
+  ['겨울잠 고객','일반 고객',218,47.9],['겨울잠 고객','겨울잠 고객',187,41.1],['겨울잠 고객','잠재 충성 고객',20,4.4],['겨울잠 고객','이탈 우려 고객',18,4.0],['겨울잠 고객','충성 고객',9,2.0],['겨울잠 고객','놓치면 안되는 고객',2,0.4],['겨울잠 고객','VIP 고객',1,0.2],
+  ['놓치면 안되는 고객','놓치면 안되는 고객',106,84.8],['놓치면 안되는 고객','VIP 고객',11,8.8],['놓치면 안되는 고객','이탈 우려 고객',8,6.4],
+  ['잠드려는 고객','일반 고객',152,38.1],['잠드려는 고객','겨울잠 고객',123,30.8],['잠드려는 고객','잠드려는 고객',64,16.0],['잠드려는 고객','이탈 고객',55,13.8],['잠드려는 고객','잠재 충성 고객',5,1.3],
+  ['VIP 고객','VIP 고객',133,78.7],['VIP 고객','이탈 우려 고객',22,13.0],['VIP 고객','놓치면 안되는 고객',14,8.3]
+];
+
+const monthColors = ['#5a0ad2','#8081ff','#8CC0FF','#5DCAA5'];
+
+function makeLegend(elId, segs, colors) {
+  const el = document.getElementById(elId);
+  if(!el) return;
+  el.innerHTML = segs.map((s,i) =>
+    `<span><span class="ld" style="background:${colors[i]}"></span>${s}</span>`
+  ).join('');
+}
+
+// ── ① 투자자 수 막대 ──────────────────────────────────────
+makeLegend('count-legend', months, monthColors);
+new Chart(document.getElementById('c-count'), {
+  type:'bar',
+  data:{
+    labels: segOrder,
+    datasets: months.map((m,i) => ({
+      label: m,
+      data: segOrder.map(s => snapshot[s].count[i]),
+      backgroundColor: monthColors[i]
+    }))
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false} },
+    scales:{
+      x:{ ticks:{autoSkip:false, maxRotation:30, font:{size:11}}, grid:{display:false} },
+      y:{ ticks:{font:{size:11}} }
+    }
+  }
+});
+
+// ── ② Monetary 꺾은선 ────────────────────────────────────
+const monetarySegs = ['VIP 고객','충성 고객','놓치면 안되는 고객','이탈 우려 고객'];
+const monetaryColors = ['#5a0ad2','#1D9E75','#8081ff','#EF9F27'];
+makeLegend('monetary-legend', monetarySegs, monetaryColors);
+
+new Chart(document.getElementById('c-monetary'), {
+  type:'line',
+  data:{
+    labels: months,
+    datasets: monetarySegs.map((s,i) => ({
+      label:s,
+      data: snapshot[s].monetary.map(v => Math.round(v/10000)),
+      borderColor: monetaryColors[i],
+      backgroundColor:'transparent',
+      tension:0.3, pointRadius:5, pointHoverRadius:7
+    }))
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false}, tooltip:{
+      callbacks:{ label: ctx => ctx.dataset.label+': '+ctx.parsed.y.toLocaleString()+'만원' }
+    }},
+    scales:{
+      y:{ ticks:{ callback: v => v.toLocaleString()+'만', font:{size:11} } },
+      x:{ grid:{display:false} }
+    }
+  }
+});
+
+// 매출 기여도 가로 막대
+const revData = [
+  {seg:'충성 고객',v:27.67},{seg:'놓치면 안되는 고객',v:22.94},{seg:'일반 고객',v:22.47},
+  {seg:'VIP 고객',v:20.28},{seg:'이탈 우려 고객',v:3.78},{seg:'겨울잠 고객',v:2.21},
+  {seg:'잠재 충성 고객',v:0.56},{seg:'잠드려는 고객',v:0.10},{seg:'이탈 고객',v:0.00},{seg:'신규 고객',v:0.00}
+];
+new Chart(document.getElementById('c-revenue'), {
+  type:'bar',
+  data:{
+    labels: revData.map(d=>d.seg),
+    datasets:[{ data:revData.map(d=>d.v),
+      backgroundColor: revData.map(d => d.v>20?'#5a0ad2': d.v>5?'#8081ff':'#D3D1C7') }]
+  },
+  options:{
+    indexAxis:'y', responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx=>ctx.parsed.x.toFixed(2)+'%' } } },
+    scales:{
+      x:{ ticks:{ callback: v=>v+'%', font:{size:11} } },
+      y:{ ticks:{ font:{size:11} }, grid:{display:false} }
+    }
+  }
+});
+
+// ── ③ Recency ────────────────────────────────────────────
+const recDanger = ['이탈 고객','잠드려는 고객','겨울잠 고객'];
+const recDangerColors = ['#E24B4A','#B4B2A9','#EF9F27'];
+makeLegend('recency-legend', recDanger, recDangerColors);
+new Chart(document.getElementById('c-recency'), {
+  type:'line',
+  data:{
+    labels:months,
+    datasets: recDanger.map((s,i)=>({
+      label:s, data:snapshot[s].recency,
+      borderColor:recDangerColors[i], backgroundColor:'transparent',
+      tension:0.3, pointRadius:5
+    }))
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx=>ctx.dataset.label+': '+ctx.parsed.y.toFixed(1)+'일' } } },
+    scales:{
+      y:{ ticks:{ callback:v=>v+'일', font:{size:11} } },
+      x:{ grid:{display:false} }
+    }
+  }
+});
+
+const recCore = ['VIP 고객','충성 고객','잠재 충성 고객','이탈 우려 고객'];
+const recCoreColors = ['#5a0ad2','#1D9E75','#8CC0FF','#EF9F27'];
+makeLegend('recency2-legend', recCore, recCoreColors);
+new Chart(document.getElementById('c-recency2'), {
+  type:'line',
+  data:{
+    labels:months,
+    datasets: recCore.map((s,i)=>({
+      label:s, data:snapshot[s].recency,
+      borderColor:recCoreColors[i], backgroundColor:'transparent',
+      tension:0.3, pointRadius:5
+    }))
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx=>ctx.dataset.label+': '+ctx.parsed.y.toFixed(1)+'일' } } },
+    scales:{
+      y:{ ticks:{ callback:v=>v+'일', font:{size:11} } },
+      x:{ grid:{display:false} }
+    }
+  }
+});
+
+// ── ④ 히트맵 ─────────────────────────────────────────────
+function buildHeatmap() {
+  const matrix = {};
+  segOrder.forEach(r=>{ matrix[r]={}; segOrder.forEach(c=>matrix[r][c]=0); });
+  migration.forEach(([f,t,n,p])=>{ if(matrix[f]) matrix[f][t]=p; });
+  const table = document.getElementById('heatmap-table');
+  let html = '<thead><tr><th class="rh"></th>';
+  segOrder.forEach(s => html += `<th class="ch">${s}</th>`);
+  html += '</tr></thead><tbody>';
+  segOrder.forEach(from => {
+    html += `<tr><th class="rh">${from}</th>`;
+    segOrder.forEach(to => {
+      const v = matrix[from][to];
+      const isDiag = from===to;
+      let bg='transparent', tc='#ccc';
+      if(v>0){
+        if(isDiag){
+          const a=Math.min(0.9,0.15+v/100*1.2);
+          bg=`rgba(90,10,210,${a.toFixed(2)})`;
+          tc=a>0.45?'#fff':'#3a0a8a';
+        } else {
+          const a=Math.min(0.85,0.1+v/100*1.1);
+          bg=`rgba(29,158,117,${a.toFixed(2)})`;
+          tc=a>0.4?'#fff':'#0a5a3a';
+        }
+      }
+      html+=`<td style="background:${bg};color:${tc};" title="${from}→${to}: ${v}%">${v>0?v.toFixed(0)+'%':''}</td>`;
+    });
+    html+='</tr>';
+  });
+  html+='</tbody>';
+  table.innerHTML=html;
+}
+buildHeatmap();
+
+// ── ⑤ Sankey ─────────────────────────────────────────────
+function buildSankey() {
+  const canvas = document.getElementById('sankeyCanvas');
+  const W = canvas.parentElement.offsetWidth - 4;
+  const H = 580;
+  canvas.width=W; canvas.height=H;
+  const ctx = canvas.getContext('2d');
+
+  const filtered = migration.filter(d=>d[2]>=5);
+  const fromTotals={}, toTotals={};
+  segOrder.forEach(s=>{fromTotals[s]=0;toTotals[s]=0;});
+  filtered.forEach(([f,t,n])=>{fromTotals[f]+=n;toTotals[t]+=n;});
+
+  const fromSegs=segOrder.filter(s=>fromTotals[s]>0);
+  const toSegs=segOrder.filter(s=>toTotals[s]>0);
+  const totalFlow=filtered.reduce((a,d)=>a+d[2],0);
+  const padX=148, padY=30, nodeW=12, gap=6;
+  const usableH=H-padY*2;
+  const scale=(usableH-gap*(fromSegs.length-1))/totalFlow*0.75;
+
+  function layoutNodes(segs,totals,x){
+    const nodes={};
+    let y=padY;
+    segs.forEach(s=>{
+      const h=Math.max(8,totals[s]*scale);
+      nodes[s]={x,y,h};
+      y+=h+gap;
+    });
+    return nodes;
+  }
+
+  const fromNodes=layoutNodes(fromSegs,fromTotals,padX);
+  const toNodes=layoutNodes(toSegs,toTotals,W-padX-nodeW);
+  const fromOff={}, toOff={};
+  fromSegs.forEach(s=>fromOff[s]=0);
+  toSegs.forEach(s=>toOff[s]=0);
+
+  filtered.forEach(([f,t,n])=>{
+    if(!fromNodes[f]||!toNodes[t]) return;
+    const h=Math.max(2,n*scale);
+    const fn=fromNodes[f],tn=toNodes[t];
+    const x0=fn.x+nodeW, y0=fn.y+fromOff[f];
+    const x1=tn.x, y1=tn.y+toOff[t];
+    const cx=(x0+x1)/2;
+    const grad=ctx.createLinearGradient(x0,0,x1,0);
+    const c=segColors[f]||'#888';
+    grad.addColorStop(0,c+'bb'); grad.addColorStop(1,c+'33');
+    ctx.beginPath();
+    ctx.moveTo(x0,y0);
+    ctx.bezierCurveTo(cx,y0,cx,y1,x1,y1);
+    ctx.lineTo(x1,y1+h);
+    ctx.bezierCurveTo(cx,y1+h,cx,y0+h,x0,y0+h);
+    ctx.closePath();
+    ctx.fillStyle=grad; ctx.fill();
+    fromOff[f]+=h; toOff[t]+=h;
+  });
+
+  ctx.font='500 11.5px "Noto Sans KR",sans-serif';
+  fromSegs.forEach(s=>{
+    const n=fromNodes[s];
+    ctx.fillStyle=segColors[s]||'#888';
+    ctx.fillRect(n.x,n.y,nodeW,n.h);
+    ctx.fillStyle='#555'; ctx.textAlign='right';
+    ctx.fillText(s,n.x-6,n.y+n.h/2+4);
+  });
+  toSegs.forEach(s=>{
+    const n=toNodes[s];
+    ctx.fillStyle=segColors[s]||'#888';
+    ctx.fillRect(n.x,n.y,nodeW,n.h);
+    ctx.fillStyle='#555'; ctx.textAlign='left';
+    ctx.fillText(s,n.x+nodeW+6,n.y+n.h/2+4);
+  });
+  ctx.fillStyle='#aaa'; ctx.font='11px "DM Mono",monospace'; ctx.textAlign='center';
+  ctx.fillText('2025-12',padX+nodeW/2,16);
+  ctx.fillText('2026-04',W-padX-nodeW/2,16);
+
+  document.getElementById('sankey-legend').innerHTML=segOrder.map(s=>
+    `<span><span class="ld" style="background:${segColors[s]}"></span>${s}</span>`
+  ).join('');
+}
+
+// ── 페이지 전환 ───────────────────────────────────────────
+let sankeyBuilt = false;
+function goPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+  if(id==='p-sankey' && !sankeyBuilt){ setTimeout(()=>{ buildSankey(); sankeyBuilt=true; },50); }
+}
+</script>
+</body>
+</html>
